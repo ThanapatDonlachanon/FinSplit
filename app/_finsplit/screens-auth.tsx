@@ -4,6 +4,7 @@ import React from "react";
 import { Button, Input, Field, Header, BottomSheet } from "./ui";
 import { useL } from "./labels";
 import type { Theme } from "./themes";
+import { initLiff, liffAutoLogin, isInLineClient } from "./liff-utils";
 
 export function LoginScreen({
   t,
@@ -11,15 +12,32 @@ export function LoginScreen({
   t: Theme;
 }) {
   const L = useL();
+  // "checking" while we figure out if we're inside LINE
+  const [liffStatus, setLiffStatus] = React.useState<"checking" | "inLine" | "browser">("checking");
+
+  React.useEffect(() => {
+    // If we reach LoginScreen while inside LINE, LIFF auto-login should have
+    // already fired. This effect is just a safety net / UX indicator.
+    initLiff().then(() => {
+      isInLineClient().then((inClient) => {
+        if (inClient) {
+          // Trigger LIFF login (redirects inside LINE, never returns)
+          liffAutoLogin();
+          setLiffStatus("inLine");
+        } else {
+          setLiffStatus("browser");
+        }
+      });
+    });
+  }, []);
 
   const handleLineLogin = () => {
+    // When in browser: standard LINE OAuth redirect
     const clientId = process.env.NEXT_PUBLIC_LINE_CHANNEL_ID;
     const appUrl = typeof window !== "undefined" ? window.location.origin : "";
     const redirectUri = `${appUrl}/auth/line/callback`;
     const state = Math.random().toString(36).substring(7);
-
     sessionStorage.setItem("line_state", state);
-
     window.location.href = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
       redirectUri
     )}&scope=profile&state=${state}`;
@@ -31,14 +49,37 @@ export function LoginScreen({
     const redirectUri = `${appUrl}/auth/google/callback`;
     const scope = "openid email profile";
     const state = Math.random().toString(36).substring(7);
-
     sessionStorage.setItem("google_state", state);
-
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
       redirectUri
     )}&scope=${encodeURIComponent(scope)}&state=${state}`;
   };
 
+  // Checking / inside LINE: show a simple loading splash
+  if (liffStatus !== "browser") {
+    return (
+      <div style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 16,
+      }}>
+        <div style={{ fontSize: 48 }}>💰</div>
+        <div style={{
+          fontFamily: t.fontBody,
+          fontSize: 15,
+          color: t.inkSoft,
+          animation: "fsFadeIn .4s ease",
+        }}>
+          {liffStatus === "inLine" ? "กำลังเข้าสู่ระบบ LINE…" : "กำลังโหลด…"}
+        </div>
+      </div>
+    );
+  }
+
+  // Browser: show normal login options
   return (
     <div style={{
       height: "100%",

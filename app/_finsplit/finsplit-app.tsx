@@ -8,6 +8,7 @@ import { StickerScene } from "./ui";
 import { Sticker } from "./icons";
 import { TabBar } from "./ui";
 import type { AppState, Category, Nav, TabId, TxType, User } from "./types";
+import { initLiff, liffAutoLogin } from "./liff-utils";
 import {
   HomeScreen, WalletsScreen, BudgetScreen, ProfileScreen,
   AddWalletSheet, AddTxnSheet, EditUsernameSheet, EmojiPickerSheet,
@@ -201,12 +202,59 @@ export default function FinSplitApp() {
   const [state, setState] = React.useState<AppState>(() => makeFreshState());
   const t = getTheme(themeId);
 
+  // ── LIFF init: runs first, auto-login when opened inside LINE ────────────
+  React.useEffect(() => {
+    initLiff().then(() => {
+      liffAutoLogin().then((profile) => {
+        if (!profile) return; // not in LINE, fall through to normal flow
+
+        setState((s) => {
+          const prefs = loadPrefs();
+
+          // Returning user: same LINE account already saved locally
+          if (
+            prefs.user &&
+            prefs.user.linkedAccounts.some(
+              (a) => a.provider === "line" && a.id === profile.userId
+            )
+          ) {
+            return {
+              ...s,
+              user: prefs.user,
+              onboarded: prefs.onboarded,
+              route: prefs.onboarded ? { name: "tab" } : { name: "usernamePrompt" },
+            };
+          }
+
+          // New user: pre-fill with LINE display name (user can still edit it)
+          return {
+            ...s,
+            user: {
+              id: profile.userId,
+              username: profile.displayName,
+              emoji: "😊",
+              linkedAccounts: [
+                { provider: "line", id: profile.userId, name: profile.displayName },
+              ],
+            },
+            route: { name: "usernamePrompt" },
+          };
+        });
+      });
+    });
+  }, []);
+
+  // ── Local prefs + OAuth callback results ─────────────────────────────────
   React.useEffect(() => {
     const p = loadPrefs();
     setThemeId(p.themeId);
     setLang(p.lang);
     if (p.user) {
-      setState((s) => ({ ...s, user: p.user, onboarded: p.onboarded }));
+      setState((s) => {
+        // Don't overwrite if LIFF already set a user
+        if (s.user) return s;
+        return { ...s, user: p.user, onboarded: p.onboarded };
+      });
     }
 
     // Check for OAuth callback results
