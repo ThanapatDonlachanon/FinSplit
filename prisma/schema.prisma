@@ -15,7 +15,8 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  wallets         Wallet[]
+  wallets         Wallet[] @relation("userWallets")
+  categories      Category[] @relation("userCategories")
   transactions    Transaction[]
   budgets         Budget[]
   sessions        Session[]
@@ -42,13 +43,12 @@ model Wallet {
   balance   Float     @default(0)
   currency  String    @default("THB")
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation("userWallets", fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  transactions        Transaction[]
-  transfersFrom       Transaction[] @relation("fromWallet")
-  transfersTo         Transaction[] @relation("toWallet")
+  transactions    Transaction[]
+  transfersTo     Transaction[] @relation("toWallet")
 }
 
 model Category {
@@ -58,7 +58,7 @@ model Category {
   color     String
   type      String    // "expense", "income", or "both"
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation("userCategories", fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
