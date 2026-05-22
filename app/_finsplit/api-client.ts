@@ -203,4 +203,20 @@ export const api = {
     });
     await handleResponse(res);
   },
+
+  /** Fetch a session by its shareToken — no auth required */
+  async getSessionByToken(shareToken: string): Promise<Session> {
+    const res = await fetch(`${BASE}/api/sessions/token/${shareToken}`);
+    return handleResponse(res);
+  },
+
+  /** Join a session as a new member linked to the current user */
+  async joinSession(token: string, sessionId: string, member: Member): Promise<Member> {
+    const res = await fetch(`${BASE}/api/sessions/${sessionId}/members`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(member),
+    });
+    return handleResponse(res);
+  },
 };

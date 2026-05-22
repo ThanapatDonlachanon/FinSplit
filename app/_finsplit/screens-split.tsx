@@ -65,7 +65,13 @@ export function GroupsScreen({ t, state, nav }: { t: Theme; state: AppState; nav
           ctaLabel={L.emptyGroupCta}
           onCta={() => nav.openCreateSession()}
           secondaryLabel={L.haveInvite}
-          onSecondary={() => { /* deep-link join — placeholder */ }}
+          onSecondary={() => {
+            const token = window.prompt("วางลิงก์หรือ share token:");
+            if (!token) return;
+            const match = token.match(/shareToken=([^&]+)/) || token.match(/\/s\/([^/?]+)/);
+            const st = match ? match[1] : token.trim();
+            if (st) window.location.href = `/s/${st}`;
+          }}
         />
       ) : (
         <div style={{ padding: "0 20px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -149,8 +155,10 @@ export function CreateSessionSheet({
   const [name, setName] = React.useState("");
   const [emoji, setEmoji] = React.useState("🌴");
   const [colorIdx, setColorIdx] = React.useState(0);
+  const myMemberId = React.useRef("m" + Date.now());
+  const myName = state.user?.username || (lang === "en" ? "You" : "คุณ");
   const [members, setMembers] = React.useState<{ id: string; name: string; isMe?: boolean; colorIdx: number }[]>([
-    { id: "me", name: lang === "en" ? "You" : "คุณ", isMe: true, colorIdx: 0 },
+    { id: myMemberId.current, name: myName, isMe: true, colorIdx: 0 },
   ]);
   const [adding, setAdding] = React.useState("");
   const [share, setShare] = React.useState(false);
@@ -158,8 +166,10 @@ export function CreateSessionSheet({
 
   React.useEffect(() => {
     if (open) {
+      myMemberId.current = "m" + Date.now();
+      const mName = state.user?.username || (lang === "en" ? "You" : "คุณ");
       setName(""); setEmoji("🌴"); setColorIdx(0);
-      setMembers([{ id: "me", name: lang === "en" ? "You" : "คุณ", isMe: true, colorIdx: 0 }]);
+      setMembers([{ id: myMemberId.current, name: mName, isMe: true, colorIdx: 0 }]);
       setAdding(""); setShare(false); setCreatedId(null);
     }
   }, [open, lang]);
@@ -180,7 +190,7 @@ export function CreateSessionSheet({
       name: name || (lang === "en" ? "Untitled group" : "กลุ่มไม่มีชื่อ"),
       emoji,
       color: t.swatches[colorIdx],
-      myId: "me",
+      myId: myMemberId.current,
       members: members.map((m) => ({ id: m.id, name: m.name, isMe: m.isMe, color: t.swatches[m.colorIdx] })),
       bills: [],
       status: "active",
@@ -283,7 +293,28 @@ export function CreateSessionSheet({
 function ShareLinkContent({ t, session, onClose }: { t: Theme; session: Session; onClose: () => void }) {
   const L = useL();
   const [copied, setCopied] = React.useState(false);
-  const url = `finsplit.app/s/${session.shareToken}`;
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+  const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  // LIFF deep-link if available, otherwise direct app URL
+  const joinUrl = liffId
+    ? `https://liff.line.me/${liffId}?shareToken=${session.shareToken}`
+    : `${appOrigin}/s/${session.shareToken}`;
+
+  const copy = () => {
+    navigator.clipboard.writeText(joinUrl).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const share = async () => {
+    const text = `${session.emoji} ${session.name} — FinSplit\n${joinUrl}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: session.name, text, url: joinUrl }); return; } catch { /* fallback */ }
+    }
+    // Fallback: copy
+    copy();
+  };
+
   return (
     <div style={{ padding: "0 20px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 16 }}>
       <StickerScene t={t} kind="done" />
@@ -294,24 +325,23 @@ function ShareLinkContent({ t, session, onClose }: { t: Theme; session: Session;
       <Card t={t} padding={14} style={{ width: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
-            flex: 1, fontFamily: t.fontNum, fontSize: 13, color: t.ink,
+            flex: 1, fontFamily: t.fontNum, fontSize: 11, color: t.ink,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>{url}</div>
-          <button onClick={() => { setCopied(true); setTimeout(() => setCopied(false), 1200); }}
+          }}>{joinUrl}</div>
+          <button onClick={copy}
             style={{
               background: copied ? t.emerald : t.primary, color: "#fff",
-              border: "none",
-              borderRadius: t.cornerSm,
+              border: "none", borderRadius: t.cornerSm,
               padding: "8px 12px", cursor: "pointer",
               fontFamily: t.fontBody, fontWeight: 600, fontSize: 12,
-              display: "flex", alignItems: "center", gap: 4,
+              display: "flex", alignItems: "center", gap: 4, flexShrink: 0,
             }}>
             {copied ? <><Ic.Check size={14} color="#fff" /> {L.copied}</> : <><Ic.Copy size={14} color="#fff" /> {L.copy}</>}
           </button>
         </div>
       </Card>
       <div style={{ display: "flex", gap: 10, width: "100%" }}>
-        <Button t={t} kind="secondary" fullWidth icon={<Ic.Share size={16} color={t.ink} />}>{L.share}</Button>
+        <Button t={t} kind="secondary" fullWidth onClick={share} icon={<Ic.Share size={16} color={t.ink} />}>{L.share}</Button>
         <Button t={t} fullWidth onClick={onClose}>{L.startNow}</Button>
       </div>
     </div>

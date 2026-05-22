@@ -22,6 +22,7 @@ model User {
   budgets         Budget[]
   sessions        Session[]
   linkedAccounts  LinkedAccount[]
+  memberLinks     Member[]  @relation("memberLinks")
 }
 
 model LinkedAccount {
@@ -131,6 +132,9 @@ model Member {
   session   Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   billShares BillShare[]
+
+  linkedUserId String?
+  linkedUser   User?   @relation("memberLinks", fields: [linkedUserId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
 }

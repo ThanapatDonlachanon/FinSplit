@@ -330,6 +330,36 @@ export default function FinSplitApp() {
             ...data,
             user: s.user, // keep user as set above
           }));
+
+          // Handle share link join — ?shareToken=xxx in URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const shareToken = urlParams.get("shareToken");
+          if (shareToken && result.apiToken) {
+            try {
+              const targetSession = await api.getSessionByToken(shareToken);
+              const alreadyIn = data.sessions.some(s => s.id === targetSession.id);
+              if (!alreadyIn) {
+                const savedPrefs = loadPrefs();
+                const memberId = "m" + Date.now();
+                const colors = ["#6366f1","#f59e0b","#10b981","#ec4899","#3b82f6","#8b5cf6","#06b6d4"];
+                const color = colors[targetSession.members.length % colors.length];
+                await api.joinSession(result.apiToken, targetSession.id, {
+                  id: memberId,
+                  name: savedPrefs.user?.username ?? profile!.displayName,
+                  color,
+                  isMe: false,
+                });
+              }
+              // Reload data to include the joined session
+              const fresh = await api.loadData(result.apiToken);
+              prevStateRef.current = { ...makeFreshState(), ...fresh };
+              setState(s => ({ ...s, ...fresh, user: s.user, route: { name: "session", id: targetSession.id } }));
+              // Clean URL
+              window.history.replaceState({}, "", window.location.pathname);
+            } catch (e) {
+              console.warn("[join] failed", e);
+            }
+          }
         } catch (e) {
           console.error("[DB] upsert failed", e);
         }
