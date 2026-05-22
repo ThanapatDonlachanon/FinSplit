@@ -173,7 +173,7 @@ function TxnRow({
 function CategoryBreakdown({ t, state, txns }: { t: Theme; state: AppState; txns: Transaction[] }) {
   const L = useL();
   const byCat: Record<string, number> = {};
-  txns.forEach((tx) => { byCat[tx.categoryId] = (byCat[tx.categoryId] || 0) + tx.amount; });
+  txns.filter((tx) => tx.categoryId).forEach((tx) => { byCat[tx.categoryId!] = (byCat[tx.categoryId!] || 0) + tx.amount; });
   const total = Object.values(byCat).reduce((a, b) => a + b, 0) || 1;
   const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 4);
   return (
