@@ -1,26 +1,60 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+html, body { margin: 0; padding: 0; }
+* { box-sizing: border-box; }
+
+body {
+  font-family: "IBM Plex Sans Thai", "Space Grotesk", system-ui, sans-serif;
+  background: #f0eee9;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+
+.fs-stage {
+  min-height: 100dvh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  background: #f0eee9;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Full-bleed on phones; centered card preview on wider screens */
+.fs-shell {
+  width: 100%;
+  height: 100dvh;
+  background: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+@media (min-width: 520px) {
+  .fs-stage { padding: 24px 0; align-items: center; }
+  .fs-shell {
+    width: 402px;
+    height: 874px;
+    border-radius: 32px;
+    box-shadow: 0 24px 60px rgba(28, 25, 23, 0.15), 0 0 0 1px rgba(28, 25, 23, 0.08);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Hide scrollbars inside the app surface */
+.fs-shell *::-webkit-scrollbar { display: none; }
+.fs-shell * { scrollbar-width: none; }
+
+@keyframes fsSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
+@keyframes fsFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fsPop {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.fs-pop { animation: fsPop 0.35s cubic-bezier(.2,.8,.3,1.1); }
+.fs-fade { animation: fsFadeIn 0.25s ease-out; }

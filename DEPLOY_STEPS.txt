@@ -1,0 +1,77 @@
+═══════════════════════════════════════════════════════════════════
+  FINSPLIT DEPLOYMENT - QUICK START (Free Tier: Vercel + Neon Postgres)
+═══════════════════════════════════════════════════════════════════
+
+✅ SETUP COMPLETE! You now have:
+  • Prisma ORM configured
+  • Database schema defined (Wallet, Transaction, User, etc)
+  • Vercel & Neon integration ready
+
+📋 DEPLOYMENT STEPS (5 minutes):
+
+1️⃣  PUSH CODE TO GITHUB
+    • Go to https://github.com/new
+    • Create repo "finsplit"
+    • Run these commands:
+
+    $ git init
+    $ git add .
+    $ git commit -m "Initial commit: FinSplit with database"
+    $ git remote add origin https://github.com/YOUR_USERNAME/finsplit.git
+    $ git branch -M main
+    $ git push -u origin main
+
+2️⃣  CREATE VERCEL PROJECT
+    • Go to https://vercel.com
+    • Sign in with GitHub
+    • Click "Add New" → "Project"
+    • Select your "finsplit" repo
+    • Click "Deploy"
+
+    (Vercel auto-detects Next.js - no config needed)
+
+3️⃣  CREATE DATABASE
+    • In your Vercel dashboard, open the project
+    • Go to "Storage" tab
+    • Click "Create Database" → "Postgres" → "Neon"
+    • Follow Neon setup (free tier)
+
+    (Vercel auto-sets DATABASE_URL)
+
+4️⃣  MIGRATE DATABASE
+    • After database is created, wait 30 seconds
+    • Run locally:
+
+    $ npx prisma migrate dev --name init
+
+    This:
+      - Creates migration files
+      - Sets up your database schema
+      - Generates Prisma Client
+
+5️⃣  DEPLOY WITH MIGRATIONS
+    $ git add prisma/migrations
+    $ git commit -m "Add database migrations"
+    $ git push
+
+    Vercel auto-redeploys. Done! 🎉
+
+6️⃣  ACCESS YOUR APP
+    Your live app: https://finsplit-RANDOM.vercel.app
+    (Check your Vercel dashboard for exact URL)
+
+═══════════════════════════════════════════════════════════════════
+
+📊 FREE TIER INCLUDES:
+  ✓ Vercel: 100GB bandwidth, unlimited deployments, custom domain option
+  ✓ Neon: 0.5GB storage, 3GB/month transfer - plenty for personal use
+
+🔗 NEXT STEPS:
+  • Keep using localStorage for now (syncs on app load)
+  • Later: Add API routes to auto-sync data to database
+  • Later: Add authentication flow using database
+
+📚 FULL DOCS:
+  See DEPLOYMENT.md for detailed instructions & troubleshooting
+
+═══════════════════════════════════════════════════════════════════
