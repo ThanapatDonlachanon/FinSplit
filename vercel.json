@@ -2,14 +2,5 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "framework": "nextjs",
-  "env": {
-    "DATABASE_URL": {
-      "description": "PostgreSQL connection string (auto-set by Vercel for Neon)"
-    },
-    "NEXT_PUBLIC_APP_URL": {
-      "description": "Your app's public URL",
-      "default": ""
-    }
-  }
+  "framework": "nextjs"
 }
