@@ -120,6 +120,14 @@ export async function getLiffContext(): Promise<LiffContext | null> {
   }
 }
 
+export async function getLiffAccessToken(): Promise<string | null> {
+  try {
+    const liff = await getLiff();
+    if (!liff.isInClient() || !liff.isLoggedIn()) return null;
+    return liff.getAccessToken();
+  } catch { return null; }
+}
+
 /** Close the LIFF window (only works inside LINE) */
 export async function closeLiff() {
   try {

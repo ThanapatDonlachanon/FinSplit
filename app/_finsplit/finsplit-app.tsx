@@ -8,7 +8,8 @@ import { StickerScene } from "./ui";
 import { Sticker } from "./icons";
 import { TabBar } from "./ui";
 import type { AppState, Category, Nav, TabId, TxType, User } from "./types";
-import { initLiff, liffAutoLogin } from "./liff-utils";
+import { initLiff, liffAutoLogin, getLiffAccessToken } from "./liff-utils";
+import { api } from "./api-client";
 import {
   HomeScreen, WalletsScreen, BudgetScreen, ProfileScreen,
   AddWalletSheet, AddTxnSheet, EditUsernameSheet, EmojiPickerSheet,
@@ -196,56 +197,162 @@ function loadPrefs(): StoredPrefs {
   return { themeId: "citrus", lang: "th", user: null, onboarded: false };
 }
 
+async function syncDiff(prev: AppState, next: AppState, token: string) {
+  function diffById<T extends { id: string }>(prevArr: T[], nextArr: T[]) {
+    const added = nextArr.filter(n => !prevArr.find(p => p.id === n.id));
+    const updated = nextArr.filter(n => {
+      const p = prevArr.find(p => p.id === n.id);
+      return p && JSON.stringify(p) !== JSON.stringify(n);
+    });
+    const deletedIds = prevArr.filter(p => !nextArr.find(n => n.id === p.id)).map(p => p.id);
+    return { added, updated, deletedIds };
+  }
+
+  const w = diffById(prev.wallets, next.wallets);
+  for (const x of w.added) await api.createWallet(token, x).catch(console.error);
+  for (const x of w.updated) await api.updateWallet(token, x.id, x).catch(console.error);
+  for (const id of w.deletedIds) await api.deleteWallet(token, id).catch(console.error);
+
+  const tr = diffById(prev.transactions, next.transactions);
+  for (const x of tr.added) await api.createTransaction(token, x).catch(console.error);
+  for (const x of tr.updated) await api.updateTransaction(token, x.id, x).catch(console.error);
+  for (const id of tr.deletedIds) await api.deleteTransaction(token, id).catch(console.error);
+
+  const defaultCatIds = new Set(["food", "transport", "shop", "fun", "health", "bills", "salary", "freelance"]);
+  const userCats = { prev: prev.categories.filter(c => !defaultCatIds.has(c.id)), next: next.categories.filter(c => !defaultCatIds.has(c.id)) };
+  const cat = diffById(userCats.prev, userCats.next);
+  for (const x of cat.added) await api.createCategory(token, x).catch(console.error);
+  for (const x of cat.updated) await api.updateCategory(token, x.id, x).catch(console.error);
+  for (const id of cat.deletedIds) await api.deleteCategory(token, id).catch(console.error);
+
+  const bu = diffById(prev.budgets, next.budgets);
+  for (const x of bu.added) await api.createBudget(token, x).catch(console.error);
+  for (const x of bu.updated) await api.updateBudget(token, x.id, x).catch(console.error);
+  for (const id of bu.deletedIds) await api.deleteBudget(token, id).catch(console.error);
+
+  const sess = diffById(prev.sessions, next.sessions);
+  for (const s of sess.added) {
+    await api.createSession(token, s).catch(console.error);
+    for (const m of s.members.filter(m => !m.isMe)) await api.addMember(token, s.id, m).catch(console.error);
+    for (const b of s.bills) await api.createBill(token, s.id, b).catch(console.error);
+  }
+  for (const s of sess.updated) {
+    const old = prev.sessions.find(x => x.id === s.id)!;
+    await api.updateSession(token, s.id, s).catch(console.error);
+    const mn = diffById(old.members, s.members);
+    for (const m of mn.added) await api.addMember(token, s.id, m).catch(console.error);
+    for (const id of mn.deletedIds) await api.deleteMember(token, s.id, id).catch(console.error);
+    const bl = diffById(old.bills, s.bills);
+    for (const b of bl.added) await api.createBill(token, s.id, b).catch(console.error);
+    for (const b of bl.updated) await api.updateBill(token, s.id, b.id, b).catch(console.error);
+    for (const id of bl.deletedIds) await api.deleteBill(token, s.id, id).catch(console.error);
+  }
+  for (const id of sess.deletedIds) await api.deleteSession(token, id).catch(console.error);
+}
+
 export default function FinSplitApp() {
   const [themeId, setThemeId] = React.useState<string>("citrus");
   const [lang, setLang] = React.useState<Lang>("th");
-  const [state, setState] = React.useState<AppState>(() => makeFreshState());
+  const [state, _setState] = React.useState<AppState>(() => makeFreshState());
   const t = getTheme(themeId);
+
+  const [apiToken, setApiToken] = React.useState<string | null>(null);
+  const apiTokenRef = React.useRef<string | null>(null);
+  React.useEffect(() => { apiTokenRef.current = apiToken; }, [apiToken]);
+
+  const prevStateRef = React.useRef<AppState | null>(null);
+
+  const setState = React.useCallback((updater: React.SetStateAction<AppState>) => {
+    _setState(prev => {
+      const next = typeof updater === "function" ? (updater as (s: AppState) => AppState)(prev) : updater;
+      if (apiTokenRef.current && prevStateRef.current) {
+        syncDiff(prevStateRef.current, next, apiTokenRef.current).catch(console.error);
+      }
+      prevStateRef.current = next;
+      return next;
+    });
+  }, []);
 
   // ── LIFF init: runs first, auto-login when opened inside LINE ────────────
   React.useEffect(() => {
-    initLiff().then(() => {
-      liffAutoLogin().then((profile) => {
-        if (!profile) return; // not in LINE, fall through to normal flow
+    initLiff().then(async () => {
+      const profile = await liffAutoLogin();
+      if (!profile) return; // not in LINE, fall through to normal flow
 
-        setState((s) => {
-          const prefs = loadPrefs();
+      setState((s) => {
+        const prefs = loadPrefs();
 
-          // Returning user: same LINE account already saved locally
-          if (
-            prefs.user &&
-            prefs.user.linkedAccounts.some(
-              (a) => a.provider === "line" && a.id === profile.userId
-            )
-          ) {
-            return {
-              ...s,
-              user: prefs.user,
-              onboarded: prefs.onboarded,
-              route: prefs.onboarded ? { name: "tab" } : { name: "usernamePrompt" },
-            };
-          }
-
-          // New user: pre-fill with LINE display name (user can still edit it)
+        // Returning user: same LINE account already saved locally
+        if (
+          prefs.user &&
+          prefs.user.linkedAccounts.some(
+            (a) => a.provider === "line" && a.id === profile.userId
+          )
+        ) {
           return {
             ...s,
-            user: {
-              id: profile.userId,
-              username: profile.displayName,
-              emoji: "😊",
-              linkedAccounts: [
-                { provider: "line", id: profile.userId, name: profile.displayName },
-              ],
-            },
-            route: { name: "usernamePrompt" },
+            user: prefs.user,
+            onboarded: prefs.onboarded,
+            route: prefs.onboarded ? { name: "tab" } : { name: "usernamePrompt" },
           };
-        });
+        }
+
+        // New user: pre-fill with LINE display name (user can still edit it)
+        return {
+          ...s,
+          user: {
+            id: profile.userId,
+            username: profile.displayName,
+            emoji: "😊",
+            linkedAccounts: [
+              { provider: "line", id: profile.userId, name: profile.displayName },
+            ],
+          },
+          route: { name: "usernamePrompt" },
+        };
       });
+
+      // Get LINE access token and upsert user to DB
+      const accessToken = await getLiffAccessToken();
+      if (accessToken) {
+        try {
+          const result = await api.upsertUser(accessToken);
+          setApiToken(result.apiToken);
+          apiTokenRef.current = result.apiToken;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("finsplit-api-token", result.apiToken);
+          }
+          // Load all data from DB
+          const data = await api.loadData(result.apiToken);
+          prevStateRef.current = { ...makeFreshState(), ...data };
+          setState(s => ({
+            ...s,
+            ...data,
+            user: s.user, // keep user as set above
+          }));
+        } catch (e) {
+          console.error("[DB] upsert failed", e);
+        }
+      }
     });
   }, []);
 
   // ── Local prefs + OAuth callback results ─────────────────────────────────
   React.useEffect(() => {
+    // Restore saved API token and load data from DB
+    const savedToken = typeof window !== "undefined" ? localStorage.getItem("finsplit-api-token") : null;
+    if (savedToken) {
+      setApiToken(savedToken);
+      apiTokenRef.current = savedToken;
+      api.loadData(savedToken).then(data => {
+        prevStateRef.current = { ...makeFreshState(), ...data };
+        setState(s => {
+          if (s.user) return { ...s, ...data }; // user already set by LIFF
+          return s; // wait for LIFF
+        });
+      }).catch(console.error);
+    }
+
     const p = loadPrefs();
     setThemeId(p.themeId);
     setLang(p.lang);
@@ -347,9 +454,9 @@ export default function FinSplitApp() {
     openEditUsername: () => setState((s) => ({ ...s, sheet: { kind: "editUsername" } })),
     openEmojiPicker: () => setState((s) => ({ ...s, sheet: { kind: "emojiPicker" } })),
     openLinkAccount: () => setState((s) => ({ ...s, sheet: { kind: "linkAccount" } })),
-  }), []);
+  }), [setState]);
 
-  const closeSheet = () => setState((s) => ({ ...s, sheet: null }));
+  const closeSheet = React.useCallback(() => setState((s) => ({ ...s, sheet: null })), [setState]);
 
   if (!state.user) {
     return (

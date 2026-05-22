@@ -9,9 +9,10 @@ datasource db {
 
 model User {
   id              String    @id @default(cuid())
-  email           String    @unique
+  email           String?   @unique
   username        String
   emoji           String    @default("😊")
+  apiToken        String?   @unique
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -148,7 +149,7 @@ model Bill {
   shares    BillShare[]
   items     BillItem[]
 
-  paidByMemberId String?
+  paidBy    String    @default("")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
